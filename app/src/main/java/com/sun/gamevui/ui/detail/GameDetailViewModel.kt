@@ -1,0 +1,64 @@
+package com.sun.gamevui.ui.detail
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.viewModelScope
+import com.sun.gamevui.base.BaseViewModel
+import com.sun.gamevui.data.model.Game
+import com.sun.gamevui.data.model.GameDetail
+import com.sun.gamevui.data.model.Screenshot
+import com.sun.gamevui.data.repository.GameRepository
+import com.sun.gamevui.data.repository.ScreenshotRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+
+class GameDetailViewModel(
+    private val gameRepo: GameRepository,
+    private val screenshotRepo: ScreenshotRepository
+) : BaseViewModel() {
+    private val _detail = MutableLiveData<GameDetail>()
+    val detail: LiveData<GameDetail>
+        get() = _detail
+    private val _screenshots = MutableLiveData<List<Screenshot>>()
+    val screenshot: LiveData<List<Screenshot>>
+        get() = _screenshots
+    private val _isFavorite = MutableLiveData<Boolean>()
+    val isFavorite: LiveData<Boolean>
+        get() = _isFavorite
+
+    fun getGameDetail(id: Long) {
+        _isLoading.postValue(true)
+        viewModelScope.launch(Dispatchers.IO + exceptionHandler) {
+            val detailFromApi = gameRepo.getGameDetail(id)
+            getScreenshots(id)
+            _detail.postValue(detailFromApi)
+            _isLoading.postValue(false)
+        }
+    }
+
+    private fun getScreenshots(id: Long) {
+        viewModelScope.launch(Dispatchers.IO + exceptionHandler) {
+            val screenshotFromApi = screenshotRepo.getScreenshots(id)
+            _screenshots.postValue(screenshotFromApi.results)
+        }
+    }
+
+    fun checkFavorite(id: Long) {
+        viewModelScope.launch(Dispatchers.IO + exceptionHandler) {
+            val gameFavorite = gameRepo.isFavorite(id)
+            _isFavorite.postValue(gameFavorite != null)
+        }
+    }
+
+    fun insertGame(game: Game) {
+        viewModelScope.launch(Dispatchers.IO + exceptionHandler) {
+            if (isFavorite.value == true) {
+                gameRepo.deleteGame(game)
+                _isFavorite.postValue(false)
+            } else {
+                gameRepo.insertGame(game)
+                _isFavorite.postValue(true)
+            }
+        }
+    }
+}
